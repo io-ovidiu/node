@@ -387,6 +387,7 @@ job "hypothesis" {
       host='hypothesis.' + liquid_domain,
       upstream='hypothesis',
       user_header_template="acct:{}@" + liquid_domain,
+      extra_header = true,
     ) }
 
   group "client" {

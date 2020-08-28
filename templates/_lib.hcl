@@ -32,7 +32,7 @@ ephemeral_disk {
 }
 {%- endmacro %}
 
-{%- macro authproxy_group(name, host, upstream, threads=24, memory=300, user_header_template="{}", count=1) %}
+{%- macro authproxy_group(name, host, upstream, threads=24, memory=300, user_header_template="{}", count=1, extra_header = false) %}
   group "authproxy" {
     ${ group_disk() }
     spread { attribute = {% raw %}"${attr.unique.hostname}"{% endraw %} }
@@ -71,18 +71,34 @@ ephemeral_disk {
       }
       template {
         data = <<-EOF
-          CONSUL_URL = ${consul_url|tojson}
-          UPSTREAM_SERVICE = ${upstream|tojson}
-          DEBUG = {{key "liquid_debug" | toJSON }}
-          USER_HEADER_TEMPLATE = ${user_header_template|tojson}
-          LIQUID_CORE_SERVICE = "core"
-          LIQUID_PUBLIC_URL = "${config.liquid_http_protocol}://{{key "liquid_domain"}}"
-          {{- with secret "liquid/${name}/auth.django" }}
-            SECRET_KEY = {{.Data.secret_key | toJSON }}
-          {{- end }}
           {{- with secret "liquid/${name}/auth.oauth2" }}
-            LIQUID_CLIENT_ID = {{.Data.client_id | toJSON }}
-            LIQUID_CLIENT_SECRET = {{.Data.client_secret | toJSON }}
+            OAUTH2_PROXY_CLIENT_ID = {{.Data.client_id | toJSON }}
+            OAUTH2_PROXY_CLIENT_SECRET = {{.Data.client_secret | toJSON }}
+          {{- end }}
+          {{- with secret "liquid/${name}/cookie" }}
+            OAUTH2_PROXY_COOKIE_SECRET = {{.Data.cookie | toJSON }}
+          {{- end }}
+            OAUTH2_PROXY_EMAIL_DOMAINS = *
+            OAUTH2_PROXY_HTTP_ADDRESS = "0.0.0.0:5000"
+            OAUTH2_PROXY_PROVIDER = "liquid"
+            OAUTH2_PROXY_REDIRECT_URL = "${config.liquid_http_protocol}://${name}.${config.liquid_domain}/oauth2/callback"
+            OAUTH2_PROXY_REDEEM_URL = "${config.liquid_http_protocol}://{{key "liquid_domain"}}/o/token/"
+            OAUTH2_PROXY_PROFILE_URL = "${config.liquid_http_protocol}://{{key "liquid_domain"}}/accounts/profile"
+            OAUTH2_PROXY_COOKIE_HTTPONLY = false
+            OAUTH2_PROXY_FORCE_HTTPS = true
+            OAUTH2_PROXY_COOKIE_SECURE = false
+            OAUTH2_PROXY_SKIP_PROVIDER_BUTTON = true
+            OAUTH2_PROXY_SET_XAUTHREQUEST = true
+            OAUTH2_PROXY_SSL_INSECURE_SKIP_VERIFY = true
+            OAUTH2_PROXY_SSL_UPSTREAM_INSECURE_SKIP_VERIFY = true
+            OAUTH2_PROXY_WHITELIST_DOMAINS = ".${config.liquid_domain}"
+            {%- if extra_header %}
+            LIQUID_ENABLE_HYPOTHESIS_HEADERS = true
+            {%- endif %}
+            LIQUID_DOMAIN = ${config.liquid_domain}
+            LIQUID_HTTP_PROTOCOL = ${config.liquid_http_protocol}
+            {{- range service "${upstream}" }}
+            OAUTH2_PROXY_UPSTREAMS = "http://{{.Address}}:{{.Port}}"
           {{- end }}
           THREADS = ${threads}
           EOF
@@ -104,14 +120,14 @@ ephemeral_disk {
           "traefik.enable=true",
           "traefik.frontend.rule=Host:${host}",
         ]
-        check {
-          name = "http"
-          initial_status = "critical"
-          type = "http"
-          path = "/__auth/logout"
-          interval = "6s"
-          timeout = "3s"
-        }
+        // check {
+        //   name = "ping"
+        //   initial_status = "critical"
+        //   type = "http"
+        //   path = "/ping"
+        //   interval = "2s"
+        //   timeout = "1s"
+        // }
         check_restart {
           limit = 3
           grace = "55s"
