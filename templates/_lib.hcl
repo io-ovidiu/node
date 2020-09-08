@@ -58,7 +58,7 @@ ephemeral_disk {
       driver = "docker"
       config {
         image = "${config.image('liquid-authproxy')}"
-        command = "cat /local/envoy.yaml"
+        command = "ls -l /"
         // args = [
         //   "--config-yaml", "/local/envoy.yaml"
         // ]
@@ -110,26 +110,27 @@ ephemeral_disk {
         memory = ${memory}
         cpu = 150
       }
-      // service {
-      //   name = "${name}-authproxy"
-      //   port = "authproxy"
-      //   tags = [
-      //     "traefik.enable=true",
-      //     "traefik.frontend.rule=Host:${host}",
-      //   ]
-      //   check {
-      //     name = "http"
-      //     initial_status = "critical"
-      //     type = "http"
-      //     path = "/__auth/logout"
-      //     interval = "6s"
-      //     timeout = "3s"
-      //   }
-      //   check_restart {
-      //     limit = 3
-      //     grace = "55s"
-      //   }
-      // }
+
+      service {
+        name = "${name}-authproxy"
+        port = "authproxy"
+        // tags = [
+        //   "traefik.enable=true",
+        //   "traefik.frontend.rule=Host:${host}",
+        // ]
+        // check {
+        //   name = "http"
+        //   initial_status = "critical"
+        //   type = "http"
+        //   path = "/__auth/logout"
+        //   interval = "6s"
+        //   timeout = "3s"
+        // }
+        // check_restart {
+        //   limit = 3
+        //   grace = "55s"
+        // }
+      }
     }
   }
 {%- endmacro %}
