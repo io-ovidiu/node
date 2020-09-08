@@ -58,9 +58,14 @@ ephemeral_disk {
       driver = "docker"
       config {
         image = "${config.image('liquid-authproxy')}"
+        command = "cat /local/envoy.yaml"
+        // args = [
+        //   "--config-yaml", "/local/envoy.yaml"
+        // ]
         volumes = [
-          ${liquidinvestigations_authproxy_repo}
+          ${liquidinvestigations_authproxy_repo}, 
         ]
+
         labels {
           liquid_task = "${name}-authproxy"
         }
@@ -69,26 +74,34 @@ ephemeral_disk {
         }
         memory_hard_limit = ${memory * 10}
       }
+      // template {
+      //   data = <<-EOF
+      //     CONSUL_URL = ${consul_url|tojson}
+      //     UPSTREAM_SERVICE = ${upstream|tojson}
+      //     DEBUG = {{key "liquid_debug" | toJSON }}
+      //     USER_HEADER_TEMPLATE = ${user_header_template|tojson}
+      //     LIQUID_CORE_SERVICE = "core"
+      //     LIQUID_PUBLIC_URL = "${config.liquid_http_protocol}://{{key "liquid_domain"}}"
+      //     {{- with secret "liquid/${name}/auth.django" }}
+      //       SECRET_KEY = {{.Data.secret_key | toJSON }}
+      //     {{- end }}
+      //     {{- with secret "liquid/${name}/auth.oauth2" }}
+      //       LIQUID_CLIENT_ID = {{.Data.client_id | toJSON }}
+      //       LIQUID_CLIENT_SECRET = {{.Data.client_secret | toJSON }}
+      //     {{- end }}
+      //     THREADS = ${threads}
+      //     EOF
+      //   destination = "local/docker.env"
+      //   env = true
+      // }
       template {
         data = <<-EOF
-          CONSUL_URL = ${consul_url|tojson}
-          UPSTREAM_SERVICE = ${upstream|tojson}
-          DEBUG = {{key "liquid_debug" | toJSON }}
-          USER_HEADER_TEMPLATE = ${user_header_template|tojson}
-          LIQUID_CORE_SERVICE = "core"
-          LIQUID_PUBLIC_URL = "${config.liquid_http_protocol}://{{key "liquid_domain"}}"
-          {{- with secret "liquid/${name}/auth.django" }}
-            SECRET_KEY = {{.Data.secret_key | toJSON }}
-          {{- end }}
-          {{- with secret "liquid/${name}/auth.oauth2" }}
-            LIQUID_CLIENT_ID = {{.Data.client_id | toJSON }}
-            LIQUID_CLIENT_SECRET = {{.Data.client_secret | toJSON }}
-          {{- end }}
-          THREADS = ${threads}
+         {% include 'envoy.yaml' %}
           EOF
-        destination = "local/docker.env"
-        env = true
+        destination = "/local/envoy.yaml"
+        perms = 644
       }
+
       resources {
         network {
           mbits = 1
@@ -97,26 +110,26 @@ ephemeral_disk {
         memory = ${memory}
         cpu = 150
       }
-      service {
-        name = "${name}-authproxy"
-        port = "authproxy"
-        tags = [
-          "traefik.enable=true",
-          "traefik.frontend.rule=Host:${host}",
-        ]
-        check {
-          name = "http"
-          initial_status = "critical"
-          type = "http"
-          path = "/__auth/logout"
-          interval = "6s"
-          timeout = "3s"
-        }
-        check_restart {
-          limit = 3
-          grace = "55s"
-        }
-      }
+      // service {
+      //   name = "${name}-authproxy"
+      //   port = "authproxy"
+      //   tags = [
+      //     "traefik.enable=true",
+      //     "traefik.frontend.rule=Host:${host}",
+      //   ]
+      //   check {
+      //     name = "http"
+      //     initial_status = "critical"
+      //     type = "http"
+      //     path = "/__auth/logout"
+      //     interval = "6s"
+      //     timeout = "3s"
+      //   }
+      //   check_restart {
+      //     limit = 3
+      //     grace = "55s"
+      //   }
+      // }
     }
   }
 {%- endmacro %}
