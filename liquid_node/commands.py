@@ -211,7 +211,7 @@ def check_system_config():
         'the "vm.max_map_count" kernel parameter is too low, check readme'
 
 
-def get_secrets(vault_secret_keys, core_auth_apps):
+def populate_secrets(vault_secret_keys, core_auth_apps):
     for path in vault_secret_keys:
         ensure_secret_key(path)
 
@@ -235,6 +235,13 @@ def get_secrets(vault_secret_keys, core_auth_apps):
         ensure_secret(f'liquid/{name}/cookie', lambda: {
             'cookie': random_secret(64),
         })
+    
+    for app in core_auth_apps:
+        log.info('Auth %s -> %s', app['name'], app['callback'])
+        cmd = ['./manage.py', 'createoauth2app', app['name'], app['callback']]
+        output = retry()(docker.exec_)('liquid:core', *cmd)
+        tokens = json.loads(output)
+        vault.set(app['vault_path'], tokens)
 
 
 @liquid_commands.command()
@@ -318,14 +325,8 @@ def deploy(secrets, checks):
         health_checks.update(job_checks)
 
     if secrets:
-        get_secrets(vault_secret_keys, core_auth_apps)
-
-    for app in core_auth_apps:
-        log.info('Auth %s -> %s', app['name'], app['callback'])
-        cmd = ['./manage.py', 'createoauth2app', app['name'], app['callback']]
-        output = retry()(docker.exec_)('liquid:core', *cmd)
-        tokens = json.loads(output)
-        vault.set(app['vault_path'], tokens)
+        populate_secrets(vault_secret_keys, core_auth_apps)
+      
 
     # wait until all deps are healthy
     if checks:
