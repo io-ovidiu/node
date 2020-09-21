@@ -235,7 +235,7 @@ def populate_secrets(vault_secret_keys, core_auth_apps):
         ensure_secret(f'liquid/{name}/cookie', lambda: {
             'cookie': random_secret(64),
         })
-    
+
     for app in core_auth_apps:
         log.info('Auth %s -> %s', app['name'], app['callback'])
         cmd = ['./manage.py', 'createoauth2app', app['name'], app['callback']]
@@ -326,7 +326,6 @@ def deploy(secrets, checks):
 
     if secrets:
         populate_secrets(vault_secret_keys, core_auth_apps)
-      
 
     # wait until all deps are healthy
     if checks:
