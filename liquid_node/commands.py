@@ -236,13 +236,6 @@ def populate_secrets(vault_secret_keys, core_auth_apps):
             'cookie': random_secret(64),
         })
 
-    for app in core_auth_apps:
-        log.info('Auth %s -> %s', app['name'], app['callback'])
-        cmd = ['./manage.py', 'createoauth2app', app['name'], app['callback']]
-        output = retry()(docker.exec_)('liquid:core', *cmd)
-        tokens = json.loads(output)
-        vault.set(app['vault_path'], tokens)
-
 
 @liquid_commands.command()
 @click.option('--no-secrets', 'secrets', is_flag=True, default=True)
@@ -287,6 +280,9 @@ def deploy(secrets, checks):
         vault_secret_keys += list(job.vault_secret_keys)
         core_auth_apps += list(job.core_auth_apps)
 
+    if secrets:
+        populate_secrets(vault_secret_keys, core_auth_apps)
+
     def start(job, hcl):
         log.info('Starting %s...', job)
         spec = nomad.parse(hcl)
@@ -315,6 +311,13 @@ def deploy(secrets, checks):
             nomad.stop(job)
         wait_for_stopped_jobs(jobs_to_stop)
 
+    for app in core_auth_apps:
+        log.info('Auth %s -> %s', app['name'], app['callback'])
+        cmd = ['./manage.py', 'createoauth2app', app['name'], app['callback']]
+        output = retry()(docker.exec_)('liquid:core', *cmd)
+        tokens = json.loads(output)
+        vault.set(app['vault_path'], tokens)
+
     # only start deps jobs + hoover
     hov_deps = hoover.Deps()
     deps_jobs = [(hov_deps.name, get_job(hov_deps.template))]
@@ -323,9 +326,6 @@ def deploy(secrets, checks):
     for job, hcl in deps_jobs:
         job_checks = start(job, hcl)
         health_checks.update(job_checks)
-
-    if secrets:
-        populate_secrets(vault_secret_keys, core_auth_apps)
 
     # wait until all deps are healthy
     if checks:
