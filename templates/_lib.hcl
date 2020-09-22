@@ -68,6 +68,11 @@ ephemeral_disk {
           authproxy = 5000
         }
         memory_hard_limit = ${memory * 10}
+	
+	extra_hosts= [
+		 "liquid.example.org:10.66.60.1",
+		 "hoover.liquid.example.org:10.66.60.1"
+	]
       }
       template {
         data = <<-EOF
@@ -81,9 +86,6 @@ ephemeral_disk {
             OAUTH2_PROXY_EMAIL_DOMAINS = *
             OAUTH2_PROXY_HTTP_ADDRESS = "0.0.0.0:5000"
             OAUTH2_PROXY_PROVIDER = "liquid"
-            OAUTH2_PROXY_REDIRECT_URL = "${config.liquid_http_protocol}://${name}.${config.liquid_domain}/oauth2/callback"
-            OAUTH2_PROXY_REDEEM_URL = "${config.liquid_http_protocol}://{{key "liquid_domain"}}/o/token/"
-            OAUTH2_PROXY_PROFILE_URL = "${config.liquid_http_protocol}://{{key "liquid_domain"}}/accounts/profile"
             OAUTH2_PROXY_COOKIE_HTTPONLY = false
             OAUTH2_PROXY_COOKIE_SECURE = false
             OAUTH2_PROXY_SKIP_PROVIDER_BUTTON = true
@@ -92,6 +94,9 @@ ephemeral_disk {
             OAUTH2_PROXY_SSL_UPSTREAM_INSECURE_SKIP_VERIFY = true
             OAUTH2_PROXY_WHITELIST_DOMAINS = ".${config.liquid_domain}"
             OAUTH2_PROXY_REVERSE_PROXY = true
+	    OAUTH2_PROXY_REDIRECT_URL = "${config.liquid_http_protocol}://${name}.${config.liquid_domain}/oauth2/callback"
+            OAUTH2_PROXY_REDEEM_URL = "${config.liquid_http_protocol}://{{key "liquid_domain"}}/o/token/"
+            OAUTH2_PROXY_PROFILE_URL = "${config.liquid_http_protocol}://{{key "liquid_domain"}}/accounts/profile"
             {%- if extra_header %}
             LIQUID_ENABLE_HYPOTHESIS_HEADERS = true
             {%- endif %}
@@ -120,18 +125,18 @@ ephemeral_disk {
           "traefik.enable=true",
           "traefik.frontend.rule=Host:${host}",
         ]
-        check {
-          name = "ping"
-          initial_status = "critical"
-          type = "http"
-          path = "/ping"
-          interval = "2s"
-          timeout = "1s"
-        }
-        check_restart {
-          limit = 3
-          grace = "55s"
-        }
+        // check {
+        //   name = "ping"
+        //   initial_status = "critical"
+        //   type = "http"
+        //   path = "/ping"
+        //   interval = "2s"
+        //   timeout = "1s"
+        // }
+        // check_restart {
+        //   limit = 3
+        //   grace = "55s"
+        // }
       }
     }
   }
