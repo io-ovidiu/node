@@ -211,7 +211,20 @@ def check_system_config():
         'the "vm.max_map_count" kernel parameter is too low, check readme'
 
 
-def populate_secrets(vault_secret_keys, core_auth_apps):
+def start_job(job, hcl):
+    log.info('Starting %s...', job)
+    spec = nomad.parse(hcl)
+    nomad.run(spec)
+    job_checks = {}
+    for service, checks in nomad.get_health_checks(spec):
+        if not checks:
+            log.warn(f'service {service} has no health checks')
+            continue
+        job_checks[service] = checks
+    return job_checks
+
+
+def populate_secrets(vault_secret_keys, core_auth_apps, liquid_job):
     for path in vault_secret_keys:
         ensure_secret_key(path)
 
@@ -235,6 +248,17 @@ def populate_secrets(vault_secret_keys, core_auth_apps):
         ensure_secret(f'liquid/{name}/cookie', lambda: {
             'cookie': random_secret(64),
         })
+
+    # Start liquid-core in order to setup the auth
+    liquid_checks = start_job('liquid', liquid_job)
+    wait_for_service_health_checks({'core': liquid_checks['core']})
+
+    for app in core_auth_apps:
+        log.info('Auth %s -> %s', app['name'], app['callback'])
+        cmd = ['./manage.py', 'createoauth2app', app['name'], app['callback']]
+        output = retry()(docker.exec_)('liquid:core', *cmd)
+        tokens = json.loads(output)
+        vault.set(app['vault_path'], tokens)
 
 
 @liquid_commands.command()
@@ -280,27 +304,10 @@ def deploy(secrets, checks):
         vault_secret_keys += list(job.vault_secret_keys)
         core_auth_apps += list(job.core_auth_apps)
 
-    if secrets:
-        populate_secrets(vault_secret_keys, core_auth_apps)
-
-    def start(job, hcl):
-        log.info('Starting %s...', job)
-        spec = nomad.parse(hcl)
-        nomad.run(spec)
-        job_checks = {}
-        for service, checks in nomad.get_health_checks(spec):
-            if not checks:
-                log.warn(f'service {service} has no health checks')
-                continue
-            job_checks[service] = checks
-        return job_checks
-
     jobs = [(job.name, get_job(job.template)) for job in config.enabled_jobs]
 
-    # Start liquid-core in order to setup the auth
-    liquid_checks = start('liquid', dict(jobs)['liquid'])
-    if checks:
-        wait_for_service_health_checks({'core': liquid_checks['core']})
+    if secrets:
+        populate_secrets(vault_secret_keys, core_auth_apps, dict(jobs)['liquid'])
 
     # check if there are jobs to stop
     nomad_jobs = set(job['ID'] for job in nomad.jobs())
@@ -311,20 +318,13 @@ def deploy(secrets, checks):
             nomad.stop(job)
         wait_for_stopped_jobs(jobs_to_stop)
 
-    for app in core_auth_apps:
-        log.info('Auth %s -> %s', app['name'], app['callback'])
-        cmd = ['./manage.py', 'createoauth2app', app['name'], app['callback']]
-        output = retry()(docker.exec_)('liquid:core', *cmd)
-        tokens = json.loads(output)
-        vault.set(app['vault_path'], tokens)
-
     # only start deps jobs + hoover
     hov_deps = hoover.Deps()
     deps_jobs = [(hov_deps.name, get_job(hov_deps.template))]
 
     health_checks = {}
     for job, hcl in deps_jobs:
-        job_checks = start(job, hcl)
+        job_checks = start_job(job, hcl)
         health_checks.update(job_checks)
 
     # wait until all deps are healthy
@@ -337,7 +337,7 @@ def deploy(secrets, checks):
         retry()(docker.exec_)('hoover-deps:snoop-pg', 'sh', '/local/set_pg_password.sh')
 
     for job, hcl in jobs:
-        job_checks = start(job, hcl)
+        job_checks = start_job(job, hcl)
         health_checks.update(job_checks)
 
     # Wait for everything else
