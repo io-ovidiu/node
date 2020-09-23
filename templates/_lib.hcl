@@ -91,7 +91,7 @@ ephemeral_disk {
             OAUTH2_PROXY_WHITELIST_DOMAINS = ".${config.liquid_domain}"
             OAUTH2_PROXY_REVERSE_PROXY = true
             {{- range service "core" }}
-            OAUTH2_PROXY_REDIRECT_URL = "http://{{.Address}}:{{.Port}}/oauth2/callback"
+            OAUTH2_PROXY_REDIRECT_URL = "${config.liquid_http_protocol}://${name}.${config.liquid_domain}/oauth2/callback"
             OAUTH2_PROXY_REDEEM_URL = "http://{{.Address}}:{{.Port}}/o/token/"
             OAUTH2_PROXY_PROFILE_URL = "http://{{.Address}}:{{.Port}}/accounts/profile"
             {{- end }}
