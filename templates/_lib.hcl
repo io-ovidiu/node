@@ -68,11 +68,7 @@ ephemeral_disk {
           authproxy = 5000
         }
         memory_hard_limit = ${memory * 10}
-	
-	extra_hosts= [
-		 "liquid.example.org:10.66.60.1",
-		 "hoover.liquid.example.org:10.66.60.1"
-	]
+
       }
       template {
         data = <<-EOF
@@ -94,9 +90,12 @@ ephemeral_disk {
             OAUTH2_PROXY_SSL_UPSTREAM_INSECURE_SKIP_VERIFY = true
             OAUTH2_PROXY_WHITELIST_DOMAINS = ".${config.liquid_domain}"
             OAUTH2_PROXY_REVERSE_PROXY = true
-	    OAUTH2_PROXY_REDIRECT_URL = "${config.liquid_http_protocol}://${name}.${config.liquid_domain}/oauth2/callback"
-            OAUTH2_PROXY_REDEEM_URL = "${config.liquid_http_protocol}://{{key "liquid_domain"}}/o/token/"
-            OAUTH2_PROXY_PROFILE_URL = "${config.liquid_http_protocol}://{{key "liquid_domain"}}/accounts/profile"
+            {{- range service "${upstream}" }}
+            OAUTH2_PROXY_UPSTREAMS = "http://{{.Address}}:{{.Port}}"
+            OAUTH2_PROXY_REDIRECT_URL = "http://{{.Address}}:{{.Port}}/oauth2/callback"
+            OAUTH2_PROXY_REDEEM_URL = "http://{{.Address}}:{{.Port}}/o/token/"
+            OAUTH2_PROXY_PROFILE_URL = "http://{{.Address}}:{{.Port}}/accounts/profile"
+            {{- end }}
             {%- if extra_header %}
             LIQUID_ENABLE_HYPOTHESIS_HEADERS = true
             {%- endif %}
@@ -104,7 +103,7 @@ ephemeral_disk {
             LIQUID_HTTP_PROTOCOL = ${config.liquid_http_protocol}
             {{- range service "${upstream}" }}
             OAUTH2_PROXY_UPSTREAMS = "http://{{.Address}}:{{.Port}}"
-          {{- end }}
+            {{- end }}
           THREADS = ${threads}
           EOF
         destination = "local/docker.env"
