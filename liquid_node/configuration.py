@@ -25,6 +25,7 @@ class Configuration:
         'dokuwiki': 'DokuWiki',
         'rocketchat': "Rocket.Chat",
         'codimd': "CodiMD",
+        'jitsi': "Jitsi",
     }
 
     APP_DESCRIPTION = {
@@ -33,7 +34,8 @@ class Configuration:
         'dokuwiki': 'is a wiki system used as a knowledge base for processed information.',
         'codimd': 'is a real-time collaboration pad.',
         'nextcloud': 'has a file share system and a contact list of users.',
-        'rocketchat': 'is the chat app.'
+        'rocketchat': 'is the chat app.',
+        'jitsi': 'is the video conference app'
     }
 
     def __init__(self):
@@ -64,6 +66,7 @@ class Configuration:
             hypothesis.Hypothesis(),
             hypothesis.UserSync(),
             codimd.Codimd(),
+            jitsi.Jitsi(),
         ]
         self.enabled_jobs = [job for job in self.all_jobs if self.is_app_enabled(job.app)]
         self.disabled_jobs = [job for job in self.all_jobs if not self.is_app_enabled(job.app)]
